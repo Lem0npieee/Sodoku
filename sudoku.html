@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数独算法可视化</title>
+    <style>
+        table {
+            border-collapse: collapse;
+        }
+
+        td {
+            width: 30px;
+            height: 30px;
+            border: 1px solid black;
+            text-align: center;
+            position: relative;
+        }
+
+        td.red {
+            color: red;
+        }
+
+        td.blue {
+            color: blue;
+        }
+
+        td.yellow {
+            background-color: yellow;
+        }
+
+       .cross {
+            color: red;
+            font-size: 16px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+       .sub-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+       .sub-grid span {
+            font-size: 10px;
+        }
+
+       .sub-grid span.excluded {
+            visibility: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>数独算法可视化</h1>
+    <table id="sudoku-grid"></table>
+    <button onclick="runLastRemainingCell()">Last Remaining Cell</button>
+    <button onclick="runPossibleNumber()">Possible Number</button>
+    <button id="prev-step" onclick="prevStep()" disabled>上一步</button>
+    <button id="next-step" onclick="nextStep()" disabled>下一步</button>
+    <script>
+        /**
+         * 初始数独数据，0表示空格
+         */
+        const initialGrid = [
+            [0,5,7,0,2,0,3,0,0],
+            [0,0,0,0,8,1,0,0,2],
+            [4,0,0,0,0,0,0,0,9],
+            [6,0,9,7,1,0,0,0,0],
+            [0,1,0,0,0,0,0,6,7],
+            [3,0,0,2,0,0,4,0,0],
+            [0,0,3,6,0,2,0,0,8],
+            [2,6,0,0,0,0,5,7,0],
+            [0,0,1,0,0,5,0,2,0]
+        ];
+
+        const sudokuGrid = document.getElementById('sudoku-grid');
+        const prevStepButton = document.getElementById('prev-step');
+        const nextStepButton = document.getElementById('next-step');
+
+        let steps = [];
+        let currentStep = -1;
+
+        function createGrid() {
+            for (let i = 0; i < 9; i++) {
+                const row = document.createElement('tr');
+                for (let j = 0; j < 9; j++) {
+                    const cell = document.createElement('td');
+                    if (initialGrid[i][j]!== 0) {
+                        cell.textContent = initialGrid[i][j];
+                        cell.classList.add('red');
+                    }
+                    row.appendChild(cell);
+                }
+                sudokuGrid.appendChild(row);
+            }
+        }
+
+        function lastRemainingCell(grid) {
+        /**
+         * 实现唯一余数法解题逻辑
+         * @param {Array} grid - 当前数独状态
+         * @returns {Array} 解题步骤数组
+         */
+            const result = [...grid.map(row => [...row])];
+            let changed;
+            const stepResults = [];
+            do {
+                changed = false;
+
+                // 检查行
+                for (let i = 0; i < 9; i++) {
+                    for (let num = 1; num <= 9; num++) {
+                        let possiblePositions = [];
+                        let excludingCells = [];
+                        let excludedCells = [];
+                        for (let j = 0; j < 9; j++) {
+                            if (result[i][j] === 0) {
+                                if (!isNumberUsedInRow(result, i, num) &&!isNumberUsedInCol(result, j, num) &&!isNumberUsedInBox(result, i - i % 3, j - j % 3, num)) {
+                                    possiblePositions.push([i, j]);
+                                } else {
+                                    excludedCells.push([i, j]);
+                                }
+                                if (isNumberUsedInRow(result, i, num)) {
+                                    for (let col = 0; col < 9; col++) {
+                                        if (result[i][col] === num) {
+                                            excludingCells.push([i, col]);
+                                        }
+                                    }
+                                }
+                                if (isNumberUsedInCol(result, j, num)) {
+                                    for (let row = 0; row < 9; row++) {
+                                        if (result[row][j] === num) {
+                                            excludingCells.push([row, j]);
+                                        }
+                                    }
+                                }
+                                if (isNumberUsedInBox(result, i - i % 3, j - j % 3, num)) {
+                                    const startRow = i - i % 3;
+                                    const startCol = j - j % 3;
+                                    for (let r = startRow; r < startRow + 3; r++) {
+                                        for (let c = startCol; c < startCol + 3; c++) {
+                                            if (result[r][c] === num) {
+                                                excludingCells.push([r, c]);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (possiblePositions.length === 1) {
+                            const [row, col] = possiblePositions[0];
+                            result[row][col] = num;
+                            stepResults.push({
+                                grid: [...result.map(row => [...row])],
+                                excludingCells: excludingCells,
+                                excludedCells: excludedCells
+                            });
+                            changed = true;
+                        }
+                    }
+                }
+
+                // 检查列
+                for (let j = 0; j < 9; j++) {
+                    for (let num = 1; num <= 9; num++) {
+                        let possiblePositions = [];
+                        let excludingCells = [];
+                        let excludedCells = [];
+                        for (let i = 0; i < 9; i++) {
+                            if (result[i][j] === 0) {
+                                if (!isNumberUsedInRow(result, i, num) &&!isNumberUsedInCol(result, j, num) &&!isNumberUsedInBox(result, i - i % 3, j - j % 3, num)) {
+                                    possiblePositions.push([i, j]);
+                                } else {
+                                    excludedCells.push([i, j]);
+                                }
+                                if (isNumberUsedInRow(result, i, num)) {
+                                    for (let col = 0; col < 9; col++) {
+                                        if (result[i][col] === num) {
+                                            excludingCells.push([i, col]);
+                                        }
+                                    }
+                                }
+                                if (isNumberUsedInCol(result, j, num)) {
+                                    for (let row = 0; row < 9; row++) {
+                                        if (result[row][j] === num) {
+                                            excludingCells.push([row, j]);
+                                        }
+                                    }
+                                }
+                                if (isNumberUsedInBox(result, i - i % 3, j - j % 3, num)) {
+                                    const startRow = i - i % 3;
+                                    const startCol = j - j % 3;
+                                    for (let r = startRow; r < startRow + 3; r++) {
+                                        for (let c = startCol; c < startCol + 3; c++) {
+                                            if (result[r][c] === num) {
+                                                excludingCells.push([r, c]);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (possiblePositions.length === 1) {
+                            const [row, col] = possiblePositions[0];
+                            result[row][col] = num;
+                            stepResults.push({
+                                grid: [...result.map(row => [...row])],
+                                excludingCells: excludingCells,
+                                excludedCells: excludedCells
+                            });
+                            changed = true;
+                        }
+                    }
+                }
+
+                // 检查宫格
+                for (let startRow = 0; startRow < 9; startRow += 3) {
+                    for (let startCol = 0; startCol < 9; startCol += 3) {
+                        for (let num = 1; num <= 9; num++) {
+                            let possiblePositions = [];
+                            let excludingCells = [];
+                            let excludedCells = [];
+                            for (let i = startRow; i < startRow + 3; i++) {
+                                for (let j = startCol; j < startCol + 3; j++) {
+                                    if (result[i][j] === 0) {
+                                        if (!isNumberUsedInRow(result, i, num) &&!isNumberUsedInCol(result, j, num) &&!isNumberUsedInBox(result, i - i % 3, j - j % 3, num)) {
+                                            possiblePositions.push([i, j]);
+                                        } else {
+                                            excludedCells.push([i, j]);
+                                        }
+                                        if (isNumberUsedInRow(result, i, num)) {
+                                            for (let col = 0; col < 9; col++) {
+                                                if (result[i][col] === num) {
+                                                    excludingCells.push([i, col]);
+                                                }
+                                            }
+                                        }
+                                        if (isNumberUsedInCol(result, j, num)) {
+                                            for (let row = 0; row < 9; row++) {
+                                                if (result[row][j] === num) {
+                                                    excludingCells.push([row, j]);
+                                                }
+                                            }
+                                        }
+                                        if (isNumberUsedInBox(result, i - i % 3, j - j % 3, num)) {
+                                            const startRow = i - i % 3;
+                                            const startCol = j - j % 3;
+                                            for (let r = startRow; r < startRow + 3; r++) {
+                                                for (let c = startCol; c < startCol + 3; c++) {
+                                                    if (result[r][c] === num) {
+                                                        excludingCells.push([r, c]);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (possiblePositions.length === 1) {
+                                const [row, col] = possiblePositions[0];
+                                result[row][col] = num;
+                                stepResults.push({
+                                    grid: [...result.map(row => [...row])],
+                                    excludingCells: excludingCells,
+                                    excludedCells: excludedCells
+                                });
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            } while (changed);
+            return stepResults;
+        }
+
+        function possibleNumber(grid) {
+        /**
+         * 计算每个空格的可能数字
+         * @param {Array} grid - 当前数独状态
+         * @returns {Array} 可能数字的二维数组
+         */
+            const result = [];
+            
+            for (let i = 0; i < 9; i++) {
+                result[i] = [];
+                for (let j = 0; j < 9; j++) {
+                    if (grid[i][j] === 0) {
+                        const possibleNums = [];
+                        for (let num = 1; num <= 9; num++) {
+                            // 检查行
+                            let rowUsed = false;
+                            for (let k = 0; k < 9; k++) {
+                                if (grid[i][k] === num) {
+                                    rowUsed = true;
+                                    break;
+                                }
+                            }
+                            if (rowUsed) continue;
+                            // 检查列
+                            let colUsed = false;
+                            for (let k = 0; k < 9; k++) {
+                                if (grid[k][j] === num) {
+                                    colUsed = true;
+                                    break;
+                                }
+                            }
+                            if (colUsed) continue;
+                            // 检查宫
+                            let boxUsed = false;
+                            const startRow = Math.floor(i / 3) * 3;
+                            const startCol = Math.floor(j / 3) * 3;
+                            for (let r = startRow; r < startRow + 3; r++) {
+                                for (let c = startCol; c < startCol + 3; c++) {
+                                    if (grid[r][c] === num) {
+                                        boxUsed = true;
+                                        break;
+                                    }
+                                }
+                                if (boxUsed) break;
+                            }
+                            if (!rowUsed &&!colUsed &&!boxUsed) {
+                                possibleNums.push(num);
+                            }
+                        }
+                        result[i][j] = possibleNums;
+                    } else {
+                        result[i][j] = [grid[i][j]];
+                    }
+                }
+            }
+            return result;
+        }
+
+        function isNumberUsedInRow(grid, row, num) {
+            return grid[row].includes(num);
+        }
+
+        function isNumberUsedInCol(grid, col, num) {
+            for (let i = 0; i < 9; i++) {
+                if (grid[i][col] === num) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function isNumberUsedInBox(grid, startRow, startCol, num) {
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    if (grid[startRow + i][startCol + j] === num) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function runLastRemainingCell() {
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = sudokuGrid.rows[i].cells[j];
+                    cell.innerHTML = '';
+                    cell.classList.remove('yellow');
+                    if (initialGrid[i][j]!== 0) {
+                        cell.textContent = initialGrid[i][j];
+                        cell.classList.add('red');
+                    }
+                }
+            }
+            steps = lastRemainingCell(initialGrid);
+            currentStep = -1;
+            prevStepButton.disabled = true;
+            nextStepButton.disabled = false;
+            nextStep();
+        }
+
+        function runPossibleNumber() {
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = sudokuGrid.rows[i].cells[j];
+                    cell.classList.remove('yellow');
+                    const crosses = cell.querySelectorAll('.cross');
+                    crosses.forEach(cross => cross.remove());
+                    cell.innerHTML = cell.textContent;
+                }
+            }
+
+            const filledGrid = [];
+            for (let i = 0; i < 9; i++) {
+                filledGrid[i] = [];
+                for (let j = 0; j < 9; j++) {
+                    const cell = sudokuGrid.rows[i].cells[j];
+                    if (cell.textContent!== "") {
+                        filledGrid[i][j] = parseInt(cell.textContent);
+                    } else {
+                        filledGrid[i][j] = 0;
+                    }
+                }
+            }
+
+            const result = possibleNumber(filledGrid);
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = sudokuGrid.rows[i].cells[j];
+                    if (filledGrid[i][j] === 0) {
+                        const subGrid = document.createElement('div');
+                        subGrid.classList.add('sub-grid');
+                        for (let num = 1; num <= 9; num++) {
+                            const span = document.createElement('span');
+                            span.textContent = num;
+                            if (!result[i][j].includes(num)) {
+                                span.classList.add('excluded');
+                            }
+                            subGrid.appendChild(span);
+                        }
+                        cell.appendChild(subGrid);
+                    }
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                showStep(steps[currentStep]);
+                nextStepButton.disabled = false;
+            }
+            if (currentStep === 0) {
+                prevStepButton.disabled = true;
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                showStep(steps[currentStep]);
+                prevStepButton.disabled = false;
+            }
+            if (currentStep === steps.length - 1) {
+                nextStepButton.disabled = true;
+            }
+        }
+
+        function showStep(step) {
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = sudokuGrid.rows[i].cells[j];
+                    cell.classList.remove('yellow');
+                    cell.innerHTML = '';
+                    if (initialGrid[i][j]!== 0) {
+                        cell.textContent = initialGrid[i][j];
+                        cell.classList.add('red');
+                    }
+                }
+            }
+            for (const [row, col] of step.excludingCells) {
+                const cell = sudokuGrid.rows[row].cells[col];
+                cell.classList.add('yellow');
+            }
+            for (const [row, col] of step.excludedCells) {
+                const cell = sudokuGrid.rows[row].cells[col];
+                const cross = document.createElement('span');
+                cross.classList.add('cross');
+                cross.textContent = '✖';
+                cell.appendChild(cross);
+            }
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const cell = sudokuGrid.rows[i].cells[j];
+                    if (step.grid[i][j]!== 0 && initialGrid[i][j] === 0) {
+                        cell.textContent = step.grid[i][j];
+                        cell.classList.add('blue');
+                    }
+                }
+            }
+        }
+
+        createGrid();
+    </script>
+</body>
+
+</html>
